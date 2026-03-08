@@ -1,0 +1,91 @@
+/**
+ * Vercel Build Output API v3 build script.
+ * 1. Builds the Vite frontend → .vercel/output/static/
+ * 2. Bundles the API serverless function with esbuild → .vercel/output/functions/api/trpc.func/
+ * 3. Writes config.json with routing rules
+ */
+import { execSync } from "child_process";
+import { mkdirSync, writeFileSync, cpSync, rmSync, existsSync } from "fs";
+import { join } from "path";
+
+const OUTPUT = ".vercel/output";
+
+// Clean previous output
+if (existsSync(OUTPUT)) {
+  rmSync(OUTPUT, { recursive: true });
+}
+
+// Step 1: Build frontend with Vite
+console.log("[1/4] Building frontend with Vite...");
+execSync("npx vite build", { stdio: "inherit" });
+
+// Step 2: Copy Vite output to .vercel/output/static
+console.log("[2/4] Copying static files...");
+mkdirSync(join(OUTPUT, "static"), { recursive: true });
+cpSync("dist/public", join(OUTPUT, "static"), { recursive: true });
+
+// Step 3: Bundle API function with esbuild
+const funcDir = join(OUTPUT, "functions/api/trpc.func");
+mkdirSync(funcDir, { recursive: true });
+
+console.log("[3/4] Bundling API serverless function...");
+execSync(
+  `npx esbuild api/trpc.ts --bundle --platform=node --format=esm --outfile=${join(funcDir, "index.mjs")} --external:mysql2 --external:mysql2/promise`,
+  { stdio: "inherit" }
+);
+
+// Copy mysql2 into the function's node_modules (it has native bindings, can't be bundled)
+const mysql2Src = "node_modules/mysql2";
+const mysql2Dest = join(funcDir, "node_modules/mysql2");
+if (existsSync(mysql2Src)) {
+  console.log("    Copying mysql2 dependency...");
+  cpSync(mysql2Src, mysql2Dest, { recursive: true });
+  
+  // Also copy dependencies of mysql2
+  const mysql2Deps = [
+    "denque", "generate-function", "iconv-lite", "long", "lru.min",
+    "named-placeholders", "seq-queue", "sqlstring", "aws-ssl-profiles"
+  ];
+  for (const dep of mysql2Deps) {
+    const src = join("node_modules", dep);
+    const dest = join(funcDir, "node_modules", dep);
+    if (existsSync(src)) {
+      cpSync(src, dest, { recursive: true });
+    }
+  }
+}
+
+// Write function config
+writeFileSync(
+  join(funcDir, ".vc-config.json"),
+  JSON.stringify(
+    {
+      runtime: "nodejs20.x",
+      handler: "index.mjs",
+      launcherType: "Nodejs",
+      maxDuration: 30,
+    },
+    null,
+    2
+  )
+);
+
+// Step 4: Write Build Output config
+console.log("[4/4] Writing output config...");
+writeFileSync(
+  join(OUTPUT, "config.json"),
+  JSON.stringify(
+    {
+      version: 3,
+      routes: [
+        { src: "/api/trpc/(.*)", dest: "/api/trpc" },
+        { handle: "filesystem" },
+        { src: "/(.*)", dest: "/index.html" },
+      ],
+    },
+    null,
+    2
+  )
+);
+
+console.log("✅ Build complete! Output in .vercel/output/");
