@@ -5,43 +5,47 @@
  * 3. Writes config.json with routing rules
  */
 import { execSync } from "child_process";
-import { mkdirSync, writeFileSync, cpSync, rmSync, existsSync } from "fs";
+import { mkdirSync, writeFileSync, cpSync, rmSync, existsSync, readFileSync, appendFileSync } from "fs";
 import { join } from "path";
 
 const OUTPUT = ".vercel/output";
 
-// Clean previous output
 if (existsSync(OUTPUT)) {
   rmSync(OUTPUT, { recursive: true });
 }
 
-// Step 1: Build frontend with Vite
 console.log("[1/4] Building frontend with Vite...");
 execSync("npx vite build", { stdio: "inherit" });
 
-// Step 2: Copy Vite output to .vercel/output/static
 console.log("[2/4] Copying static files...");
 mkdirSync(join(OUTPUT, "static"), { recursive: true });
 cpSync("dist/public", join(OUTPUT, "static"), { recursive: true });
 
-// Step 3: Bundle API function with esbuild
 const funcDir = join(OUTPUT, "functions/api/trpc.func");
 mkdirSync(funcDir, { recursive: true });
 
 console.log("[3/4] Bundling API serverless function...");
 execSync(
-  `npx esbuild api/trpc.ts --bundle --platform=node --format=esm --outfile=${join(funcDir, "index.mjs")} --external:mysql2 --external:mysql2/promise`,
+  `npx esbuild api/trpc.ts --bundle --platform=node --format=cjs --outfile=${join(funcDir, "index.js")} --external:mysql2 --external:mysql2/promise`,
   { stdio: "inherit" }
 );
 
-// Copy mysql2 into the function's node_modules (it has native bindings, can't be bundled)
+writeFileSync(
+  join(funcDir, "package.json"),
+  JSON.stringify({ type: "commonjs" })
+);
+
+appendFileSync(
+  join(funcDir, "index.js"),
+  "\n// Vercel handler export\nmodule.exports = module.exports.default || module.exports;\n"
+);
+
 const mysql2Src = "node_modules/mysql2";
 const mysql2Dest = join(funcDir, "node_modules/mysql2");
 if (existsSync(mysql2Src)) {
   console.log("    Copying mysql2 dependency...");
   cpSync(mysql2Src, mysql2Dest, { recursive: true });
   
-  // Also copy dependencies of mysql2
   const mysql2Deps = [
     "denque", "generate-function", "iconv-lite", "long", "lru.min",
     "named-placeholders", "seq-queue", "sqlstring", "aws-ssl-profiles"
@@ -55,22 +59,21 @@ if (existsSync(mysql2Src)) {
   }
 }
 
-// Write function config
 writeFileSync(
   join(funcDir, ".vc-config.json"),
   JSON.stringify(
     {
       runtime: "nodejs20.x",
-      handler: "index.mjs",
+      handler: "index.js",
       launcherType: "Nodejs",
       maxDuration: 30,
+      shouldAddHelpers: true,
     },
     null,
     2
   )
 );
 
-// Step 4: Write Build Output config
 console.log("[4/4] Writing output config...");
 writeFileSync(
   join(OUTPUT, "config.json"),
