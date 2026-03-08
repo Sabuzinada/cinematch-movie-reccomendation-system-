@@ -129,51 +129,6 @@ The `.gitignore` excludes `node_modules/`, `dist/`, `.env`, and `data/` (the Mov
 
 ---
 
-## Deploying to Vercel
-
-### Option A: Deploy via Vercel CLI
-
-```bash
-npm i -g vercel
-vercel
-```
-
-### Option B: Deploy via GitHub integration
-
-1. Push your code to GitHub
-2. Go to [vercel.com/new](https://vercel.com/new)
-3. Import your GitHub repository
-4. Vercel auto-detects the `vercel.json` configuration
-
-### Configure environment variables in Vercel
-
-In your Vercel project dashboard, go to **Settings → Environment Variables** and add:
-
-| Variable | Value |
-|----------|-------|
-| `DATABASE_URL` | Your MySQL connection string (with SSL) |
-| `JWT_SECRET` | A random 32+ character string |
-| `OPENAI_API_KEY` | Your OpenAI API key |
-| `TMDB_API_KEY` | Your TMDB API key |
-| `NODE_ENV` | `production` |
-
-### Important: Database SSL
-
-Most cloud MySQL providers require SSL. Make sure your `DATABASE_URL` includes SSL parameters:
-
-```
-mysql://user:pass@host:port/db?ssl={"rejectUnauthorized":true}
-```
-
-### Seed the production database
-
-After deploying, you need to seed the production database. You can do this locally by temporarily pointing `DATABASE_URL` to your production database:
-
-```bash
-DATABASE_URL="your-production-url" node seed-db.mjs
-```
-
----
 
 ## Project Structure
 
@@ -242,6 +197,3 @@ If collaborative filtering doesn't find enough candidates (e.g., new user with f
 
 ---
 
-## License
-
-MIT
