@@ -26,7 +26,7 @@ mkdirSync(funcDir, { recursive: true });
 
 console.log("[3/4] Bundling API serverless function...");
 execSync(
-  `npx esbuild api/trpc.ts --bundle --platform=node --format=cjs --outfile=${join(funcDir, "index.js")} --external:mysql2 --external:mysql2/promise`,
+  `npx esbuild server-entry/trpc.ts --bundle --platform=node --format=cjs --outfile=${join(funcDir, "index.js")} --external:mysql2 --external:mysql2/promise`,
   { stdio: "inherit" }
 );
 
