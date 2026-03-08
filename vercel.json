@@ -1,5 +1,16 @@
 {
   "version": 2,
   "installCommand": "npm install",
-  "buildCommand": "npm run build:vercel"
+  "buildCommand": "npx vite build",
+  "outputDirectory": "dist/public",
+  "functions": {
+    "api/trpc.js": {
+      "maxDuration": 30,
+      "includeFiles": "api/package.json"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/trpc/:path*", "destination": "/api/trpc" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
 }
